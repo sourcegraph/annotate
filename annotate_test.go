@@ -68,9 +68,8 @@ func TestWithHTML(t *testing.T) {
 
 		anns := annsByFile[name]
 		var buf bytes.Buffer
-		err = WithHTML(input, anns, func(w io.Writer, b []byte) int {
-			n, _ := w.Write(b)
-			return n
+		err = WithHTML(input, anns, func(w io.Writer, b []byte) {
+			w.Write(b)
 		}, &buf)
 		if err != nil {
 			t.Errorf("%s: WithHTML: %s", name, err)

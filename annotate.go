@@ -28,13 +28,13 @@ func (a annotations) Less(i, j int) bool {
 }
 func (a annotations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
-func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte) int, w io.Writer) error {
+func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) error {
 	sort.Sort(annotations(anns))
 	_, err := annotate(src, 0, len(src), anns, encode, w)
 	return err
 }
 
-func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte) int, w io.Writer) (bool, error) {
+func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) (bool, error) {
 	rightmost := 0
 	for i, ann := range anns {
 		if ann.Start >= right {
