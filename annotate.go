@@ -35,6 +35,10 @@ func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte), w 
 }
 
 func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) (bool, error) {
+	if encode == nil {
+		encode = func(w io.Writer, b []byte) { w.Write(b) }
+	}
+
 	rightmost := 0
 	for i, ann := range anns {
 		if ann.Start >= right {
@@ -45,11 +49,11 @@ func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Wr
 		}
 
 		if i == 0 {
-			w.Write(src[left:ann.Start])
+			encode(w, src[left:ann.Start])
 		} else {
 			prev := anns[i-1]
 			if ann.Start > prev.End {
-				w.Write(src[prev.End:ann.Start])
+				encode(w, src[prev.End:ann.Start])
 			}
 			if ann.Start < prev.End {
 				// already recursed to this one
@@ -66,17 +70,13 @@ func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Wr
 
 		if !inner {
 			b := src[ann.Start:ann.End]
-			if encode == nil {
-				w.Write(b)
-			} else {
-				encode(w, b)
-			}
+			encode(w, b)
 		}
 
 		w.Write(ann.Right)
 
 		if i == len(anns)-1 {
-			w.Write(src[ann.End:right])
+			encode(w, src[ann.End:right])
 		}
 
 		rightmost = ann.End
