@@ -11,6 +11,7 @@ func init() { log.SetFlags(0) }
 type Annotation struct {
 	Start, End  int
 	Left, Right []byte
+	WantInner   int
 }
 
 type annotations []*Annotation
@@ -21,6 +22,9 @@ func (a annotations) Less(i, j int) bool {
 	// matches.
 	ai, aj := a[i], a[j]
 	if ai.Start == aj.Start {
+		if ai.End == aj.End {
+			return ai.WantInner < aj.WantInner
+		}
 		return ai.End > aj.End
 	} else {
 		return ai.Start < aj.Start

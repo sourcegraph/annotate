@@ -17,36 +17,36 @@ var match = flag.String("m", "", "only run tests whose name contains this string
 func TestWithHTML(t *testing.T) {
 	annsByFile := map[string][]*Annotation{
 		"hello_world.txt": []*Annotation{
-			{0, 5, []byte("<b>"), []byte("</b>")},
-			{7, 12, []byte("<i>"), []byte("</i>")},
+			{0, 5, []byte("<b>"), []byte("</b>"), 0},
+			{7, 12, []byte("<i>"), []byte("</i>"), 0},
 		},
 		"adjacent.txt": []*Annotation{
-			{0, 3, []byte("<b>"), []byte("</b>")},
-			{3, 6, []byte("<i>"), []byte("</i>")},
+			{0, 3, []byte("<b>"), []byte("</b>"), 0},
+			{3, 6, []byte("<i>"), []byte("</i>"), 0},
 		},
 		"empties.txt": []*Annotation{
-			{0, 0, []byte("<b>"), []byte("</b>")},
-			{0, 0, []byte("<i>"), []byte("</i>")},
-			{2, 2, []byte("<i>"), []byte("</i>")},
+			{0, 0, []byte("<b>"), []byte("</b>"), 0},
+			{0, 0, []byte("<i>"), []byte("</i>"), 0},
+			{2, 2, []byte("<i>"), []byte("</i>"), 0},
 		},
 		"nested_0.txt": []*Annotation{
-			{0, 4, []byte("<1>"), []byte("</1>")},
-			{1, 3, []byte("<2>"), []byte("</2>")},
+			{0, 4, []byte("<1>"), []byte("</1>"), 0},
+			{1, 3, []byte("<2>"), []byte("</2>"), 0},
 		},
 		"nested_1.txt": []*Annotation{
-			{0, 4, []byte("<1>"), []byte("</1>")},
-			{1, 3, []byte("<2>"), []byte("</2>")},
-			{2, 2, []byte("<3>"), []byte("</3>")},
+			{0, 4, []byte("<1>"), []byte("</1>"), 0},
+			{1, 3, []byte("<2>"), []byte("</2>"), 0},
+			{2, 2, []byte("<3>"), []byte("</3>"), 0},
 		},
 		"nested_2.txt": []*Annotation{
-			{0, 2, []byte("<1>"), []byte("</1>")},
-			{2, 4, []byte("<2>"), []byte("</2>")},
-			{4, 6, []byte("<3>"), []byte("</3>")},
-			{7, 8, []byte("<4>"), []byte("</4>")},
+			{0, 2, []byte("<1>"), []byte("</1>"), 0},
+			{2, 4, []byte("<2>"), []byte("</2>"), 0},
+			{4, 6, []byte("<3>"), []byte("</3>"), 0},
+			{7, 8, []byte("<4>"), []byte("</4>"), 0},
 		},
 		"html.txt": []*Annotation{
-			{193, 203, []byte("<1>"), []byte("</1>")},
-			{336, 339, []byte("<WOOF>"), []byte("</WOOF>")},
+			{193, 203, []byte("<1>"), []byte("</1>"), 0},
+			{336, 339, []byte("<WOOF>"), []byte("</WOOF>"), 0},
 		},
 	}
 
