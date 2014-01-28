@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"text/template"
 )
 
 var saveExp = flag.Bool("exp", false, "overwrite all expected output files with actual output (returning a failure)")
@@ -43,6 +44,10 @@ func TestWithHTML(t *testing.T) {
 			{4, 6, []byte("<3>"), []byte("</3>")},
 			{7, 8, []byte("<4>"), []byte("</4>")},
 		},
+		"html.txt": []*Annotation{
+			{193, 203, []byte("<1>"), []byte("</1>")},
+			{336, 339, []byte("<WOOF>"), []byte("</WOOF>")},
+		},
 	}
 
 	dir := "testdata"
@@ -69,7 +74,7 @@ func TestWithHTML(t *testing.T) {
 		anns := annsByFile[name]
 		var buf bytes.Buffer
 		err = WithHTML(input, anns, func(w io.Writer, b []byte) {
-			w.Write(b)
+			template.HTMLEscape(w, b)
 		}, &buf)
 		if err != nil {
 			t.Errorf("%s: WithHTML: %s", name, err)
