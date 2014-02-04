@@ -56,8 +56,11 @@ func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Wr
 			encode(w, src[left:ann.Start])
 		} else {
 			prev := anns[i-1]
+			if prev.End >= len(src) {
+				break
+			}
 			if ann.Start > prev.End {
-				encode(w, src[prev.End:ann.Start])
+				encode(w, src[prev.End:min(ann.Start, len(src))])
 			}
 			if ann.Start < prev.End {
 				// already recursed to this one
@@ -73,17 +76,29 @@ func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Wr
 		}
 
 		if !inner {
-			b := src[ann.Start:ann.End]
+			if ann.Start >= len(src) {
+				break
+			}
+			b := src[ann.Start:min(ann.End, len(src))]
 			encode(w, b)
 		}
 
 		w.Write(ann.Right)
 
 		if i == len(anns)-1 {
-			encode(w, src[ann.End:right])
+			if ann.End < len(src) {
+				encode(w, src[ann.End:min(right, len(src))])
+			}
 		}
 
 		rightmost = ann.End
 	}
 	return len(anns) > 0, nil
+}
+
+func min(a, b int) int {
+	if a > b {
+		return b
+	}
+	return a
 }
