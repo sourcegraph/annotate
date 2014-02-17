@@ -39,12 +39,20 @@ func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte), w 
 }
 
 func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) (bool, error) {
+	seen := make(map[*Annotation]struct{})
+	return annotate1(src, left, right, anns, encode, w, seen)
+}
+
+func annotate1(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error) {
 	if encode == nil {
 		encode = func(w io.Writer, b []byte) { w.Write(b) }
 	}
 
 	rightmost := 0
 	for i, ann := range anns {
+		if _, exist := seen[ann]; exist {
+			continue
+		}
 		if ann.Start >= right {
 			return i != 0, nil
 		}
@@ -62,15 +70,11 @@ func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Wr
 			if ann.Start > prev.End {
 				encode(w, src[prev.End:min(ann.Start, len(src))])
 			}
-			if ann.Start < prev.End {
-				// already recursed to this one
-				continue
-			}
 		}
 
 		w.Write(ann.Left)
 
-		inner, err := annotate(src, ann.Start, ann.End, anns[i+1:], encode, w)
+		inner, err := annotate1(src, ann.Start, ann.End, anns[i+1:], encode, w, seen)
 		if err != nil {
 			return false, err
 		}
@@ -84,6 +88,7 @@ func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Wr
 		}
 
 		w.Write(ann.Right)
+		seen[ann] = struct{}{}
 
 		if i == len(anns)-1 {
 			if ann.End < len(src) {
