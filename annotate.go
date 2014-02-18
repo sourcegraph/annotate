@@ -39,8 +39,8 @@ func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte), w 
 }
 
 func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) (bool, error) {
-
-	annotate1 := func(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error) {
+	var annotate1 func(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error)
+	annotate1 = func(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error) {
 		if encode == nil {
 			encode = func(w io.Writer, b []byte) { w.Write(b) }
 		}
