@@ -39,66 +39,67 @@ func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte), w 
 }
 
 func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) (bool, error) {
+
+	annotate1 := func(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error) {
+		if encode == nil {
+			encode = func(w io.Writer, b []byte) { w.Write(b) }
+		}
+
+		rightmost := 0
+		for i, ann := range anns {
+			if _, exist := seen[ann]; exist {
+				continue
+			}
+			if ann.Start >= right {
+				return i != 0, nil
+			}
+			if ann.End < rightmost {
+				continue
+			}
+
+			if i == 0 {
+				encode(w, src[left:ann.Start])
+			} else {
+				prev := anns[i-1]
+				if prev.End >= len(src) {
+					break
+				}
+				if ann.Start > prev.End {
+					encode(w, src[prev.End:min(ann.Start, len(src))])
+				}
+			}
+
+			w.Write(ann.Left)
+
+			inner, err := annotate1(src, ann.Start, ann.End, anns[i+1:], encode, w, seen)
+			if err != nil {
+				return false, err
+			}
+
+			if !inner {
+				if ann.Start >= len(src) {
+					break
+				}
+				b := src[ann.Start:min(ann.End, len(src))]
+				encode(w, b)
+			}
+
+			w.Write(ann.Right)
+			seen[ann] = struct{}{}
+
+			if i == len(anns)-1 {
+				if ann.End < len(src) {
+					encode(w, src[ann.End:min(right, len(src))])
+				}
+			}
+
+			rightmost = ann.End
+		}
+		return len(anns) > 0, nil
+	}
+
 	seen := make(map[*Annotation]struct{})
 	return annotate1(src, left, right, anns, encode, w, seen)
-}
-
-func annotate1(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error) {
-	if encode == nil {
-		encode = func(w io.Writer, b []byte) { w.Write(b) }
-	}
-
-	rightmost := 0
-	for i, ann := range anns {
-		if _, exist := seen[ann]; exist {
-			continue
-		}
-		if ann.Start >= right {
-			return i != 0, nil
-		}
-		if ann.End < rightmost {
-			continue
-		}
-
-		if i == 0 {
-			encode(w, src[left:ann.Start])
-		} else {
-			prev := anns[i-1]
-			if prev.End >= len(src) {
-				break
-			}
-			if ann.Start > prev.End {
-				encode(w, src[prev.End:min(ann.Start, len(src))])
-			}
-		}
-
-		w.Write(ann.Left)
-
-		inner, err := annotate1(src, ann.Start, ann.End, anns[i+1:], encode, w, seen)
-		if err != nil {
-			return false, err
-		}
-
-		if !inner {
-			if ann.Start >= len(src) {
-				break
-			}
-			b := src[ann.Start:min(ann.End, len(src))]
-			encode(w, b)
-		}
-
-		w.Write(ann.Right)
-		seen[ann] = struct{}{}
-
-		if i == len(anns)-1 {
-			if ann.End < len(src) {
-				encode(w, src[ann.End:min(right, len(src))])
-			}
-		}
-
-		rightmost = ann.End
-	}
-	return len(anns) > 0, nil
 }
 
 func min(a, b int) int {
