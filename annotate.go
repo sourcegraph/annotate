@@ -89,6 +89,11 @@ func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Wr
 
 			if i == len(anns)-1 {
 				if ann.End < len(src) {
+					// TODO(sqs): fix this. it chops off a portion of an
+					// annotation.
+					if right < ann.End {
+						right = ann.End
+					}
 					encode(w, src[ann.End:min(right, len(src))])
 				}
 			}
