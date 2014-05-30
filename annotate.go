@@ -3,11 +3,8 @@ package annotate
 import (
 	"bytes"
 	"io"
-	"log"
 	"sort"
 )
-
-func init() { log.SetFlags(0) }
 
 type Annotation struct {
 	Start, End  int
