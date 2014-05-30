@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"sort"
 	"unicode/utf8"
 )
 
@@ -85,8 +86,19 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 		}
 	}
 
-	if len(closeAnnsAtRune) > 0 {
+	if unclosed := len(closeAnnsAtRune); unclosed > 0 {
 		err = ErrEndOutOfBounds
+
+		// Clean up by closing unclosed annotations, in the order they would have been
+		// closed in.
+		unclosedAnns := make(Annotations, 0, len(closeAnnsAtRune))
+		for _, anns := range closeAnnsAtRune {
+			unclosedAnns = append(unclosedAnns, anns...)
+		}
+		sort.Sort(sort.Reverse(unclosedAnns))
+		for _, a := range unclosedAnns {
+			out.Write(a.Right)
+		}
 	}
 
 	return out.Bytes(), err

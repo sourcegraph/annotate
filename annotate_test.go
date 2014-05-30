@@ -100,7 +100,17 @@ func TestAnnotate(t *testing.T) {
 
 		// Errors
 		"start oob": {"a", Annotations{{-1, 0, []byte("<"), []byte(">"), 0}}, "a", ErrStartOutOfBounds},
-		"end oob":   {"a", Annotations{{0, 3, []byte("<"), []byte(">"), 0}}, "<a", ErrEndOutOfBounds},
+		"end oob":   {"a", Annotations{{0, 3, []byte("<"), []byte(">"), 0}}, "<a>", ErrEndOutOfBounds},
+		"end oob (multiple)": {
+			"ab",
+			Annotations{
+				{0, 3, []byte(""), []byte("1"), 0},
+				{1, 3, []byte(""), []byte("2"), 0},
+				{0, 5, []byte(""), []byte("3"), 0},
+			},
+			"ab213",
+			ErrEndOutOfBounds,
+		},
 	}
 	for label, test := range tests {
 		if *match != "" && !strings.Contains(label, *match) {
