@@ -1,3 +1,3 @@
 PASS
-BenchmarkAnnotate-12	    5000	    320201 ns/op	   22231 B/op	     979 allocs/op
-ok  	github.com/sourcegraph/annotate	1.641s
+BenchmarkAnnotate-12	    5000	    315831 ns/op	   22222 B/op	     979 allocs/op
+ok  	github.com/sourcegraph/annotate	1.616s

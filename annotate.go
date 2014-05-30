@@ -40,11 +40,6 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 	var out bytes.Buffer
 	var err error
 
-	// Default content writer.
-	if writeContent == nil {
-		writeContent = func(w io.Writer, b []byte) { w.Write(b) }
-	}
-
 	// Keep a stack of annotations we should close at all future rune offsets.
 	closeAnnsAtRune := make(map[int]Annotations, len(src)/10)
 
@@ -74,7 +69,11 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 		}
 
 		_, runeSize := utf8.DecodeRune(src)
-		writeContent(&out, src[:runeSize])
+		if writeContent == nil {
+			out.Write(src[:runeSize])
+		} else {
+			writeContent(&out, src[:runeSize])
+		}
 		src = src[runeSize:]
 
 		// Close annotations that after this rune.
