@@ -47,16 +47,6 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, rune)) 
 
 	// Keep a stack of annotations we should close at all future rune offsets.
 	closeAnnsAtRune := make(map[int]Annotations, len(src)/10)
-	closeAnnsAt := func(r int) {
-		// log.Printf("closeAnnsAt(%d)", r)
-		// Close annotations that after this rune.
-		if closeAnns, present := closeAnnsAtRune[r]; present {
-			for i := len(closeAnns) - 1; i >= 0; i-- {
-				out.Write(closeAnns[i].Right)
-			}
-			delete(closeAnnsAtRune, r)
-		}
-	}
 
 	runeCount := utf8.RuneCount(src)
 	b := 0
@@ -90,7 +80,13 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, rune)) 
 
 		writeContent(&out, rune)
 
-		closeAnnsAt(r + 1)
+		// Close annotations that after this rune.
+		if closeAnns, present := closeAnnsAtRune[r+1]; present {
+			for i := len(closeAnns) - 1; i >= 0; i-- {
+				out.Write(closeAnns[i].Right)
+			}
+			delete(closeAnnsAtRune, r+1)
+		}
 	}
 
 	if len(closeAnnsAtRune) > 0 {
