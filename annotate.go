@@ -49,7 +49,6 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 	closeAnnsAtRune := make(map[int]Annotations, len(src)/10)
 
 	runeCount := utf8.RuneCount(src)
-	b := 0
 	for r := 0; r < runeCount; r++ {
 		// Open annotations that begin here.
 		for i, a := range anns {
@@ -75,7 +74,6 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 		}
 
 		_, runeSize := utf8.DecodeRune(src)
-		b += runeSize
 		writeContent(&out, src[:runeSize])
 		src = src[runeSize:]
 
