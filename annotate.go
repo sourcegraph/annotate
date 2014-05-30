@@ -36,13 +36,13 @@ func (a Annotations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 // Annotating an empty byte array always returns an empty byte array.
 //
 // Assumes anns is sorted (using sort.Sort(anns)).
-func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, rune)) ([]byte, error) {
+func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)) ([]byte, error) {
 	var out bytes.Buffer
 	var err error
 
 	// Default content writer.
 	if writeContent == nil {
-		writeContent = func(w io.Writer, c rune) { io.WriteString(w, string(c)) }
+		writeContent = func(w io.Writer, b []byte) { w.Write(b) }
 	}
 
 	// Keep a stack of annotations we should close at all future rune offsets.
@@ -74,11 +74,10 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, rune)) 
 			}
 		}
 
-		rune, runeSize := utf8.DecodeRune(src)
-		src = src[runeSize:]
+		_, runeSize := utf8.DecodeRune(src)
 		b += runeSize
-
-		writeContent(&out, rune)
+		writeContent(&out, src[:runeSize])
+		src = src[runeSize:]
 
 		// Close annotations that after this rune.
 		if closeAnns, present := closeAnnsAtRune[r+1]; present {

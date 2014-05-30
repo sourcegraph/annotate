@@ -174,7 +174,7 @@ func TestAnnotate_Files(t *testing.T) {
 		anns := annsByFile[name]
 		sort.Sort(anns)
 
-		got, err := Annotate(input, anns, func(w io.Writer, c rune) { template.HTMLEscape(w, []byte(string(c))) })
+		got, err := Annotate(input, anns, func(w io.Writer, b []byte) { template.HTMLEscape(w, b) })
 		if err != nil {
 			t.Errorf("%s: Annotate: %s", name, err)
 			continue
@@ -209,7 +209,7 @@ func TestAnnotate_Files(t *testing.T) {
 }
 
 func BenchmarkAnnotate(b *testing.B) {
-	input := []byte(strings.Repeat("a", 2000))
+	input := []byte(strings.Repeat(strings.Repeat("a", 99)+"⌘", 20))
 	n := len(input)/2 - 50
 	anns := make(Annotations, n)
 	for i := 0; i < n; i++ {
