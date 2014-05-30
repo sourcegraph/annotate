@@ -15,37 +15,136 @@ import (
 var saveExp = flag.Bool("exp", false, "overwrite all expected output files with actual output (returning a failure)")
 var match = flag.String("m", "", "only run tests whose name contains this string")
 
-func TestWithHTML(t *testing.T) {
-	annsByFile := map[string][]*Annotation{
-		"hello_world.txt": []*Annotation{
+func TestAnnotate(t *testing.T) {
+	tests := map[string]struct {
+		input   string
+		anns    Annotations
+		want    string
+		wantErr error
+	}{
+		"empty and unannotated": {"", nil, "", nil},
+		"unannotated":           {"a⌘b", nil, "a⌘b", nil},
+
+		// The docs say "Annotating an empty byte array always returns an empty
+		// byte array.", which is arbitrary but makes implementation easier.
+		"empty annotated": {"", Annotations{{0, 0, []byte("["), []byte("]"), 0}}, "", nil},
+
+		"zero-length annotations": {
+			"aaaa",
+			Annotations{
+				{0, 0, []byte("<b>"), []byte("</b>"), 0},
+				{0, 0, []byte("<i>"), []byte("</i>"), 0},
+				{2, 2, []byte("<i>"), []byte("</i>"), 0},
+			},
+			"<b></b><i></i>aa<i></i>aa",
+			nil,
+		},
+		"1 annotation": {"a", Annotations{{0, 1, []byte("["), []byte("]"), 0}}, "[a]", nil},
+		"nested": {
+			"abc",
+			Annotations{
+				{0, 3, []byte("["), []byte("]"), 0},
+				{1, 2, []byte("<"), []byte(">"), 0},
+			},
+			"[a<b>c]",
+			nil,
+		},
+		"nested 1": {
+			"abcd",
+			Annotations{
+				{0, 4, []byte("<1>"), []byte("</1>"), 0},
+				{1, 3, []byte("<2>"), []byte("</2>"), 0},
+				{2, 2, []byte("<3>"), []byte("</3>"), 0},
+			},
+			"<1>a<2>b<3></3>c</2>d</1>",
+			nil,
+		},
+		"same range": {
+			"ab",
+			Annotations{
+				{0, 2, []byte("["), []byte("]"), 0},
+				{0, 2, []byte("<"), []byte(">"), 0},
+			},
+			"[<ab>]",
+			nil,
+		},
+		"same range (with WantInner)": {
+			"ab",
+			Annotations{
+				{0, 2, []byte("["), []byte("]"), 1},
+				{0, 2, []byte("<"), []byte(">"), 0},
+			},
+			"<[ab]>",
+			nil,
+		},
+		"unicode content": {
+			"abcdef⌘vwxyz",
+			Annotations{
+				{6, 7, []byte("<a>"), []byte("</a>"), 0},
+				{8, 10, []byte("<b>"), []byte("</b>"), 0},
+				{0, 11, []byte("<c>"), []byte("</c>"), 0},
+			},
+			"<c>abcdef<a>⌘</a>v<b>wx</b>y</c>z",
+			nil,
+		},
+		"remainder": {
+			"xyz",
+			Annotations{
+				{0, 2, []byte("<b>"), []byte("</b>"), 0},
+				{0, 1, []byte("<c>"), []byte("</c>"), 0},
+			},
+			"<b><c>x</c>y</b>z",
+			nil,
+		},
+
+		// Errors
+		"start oob": {"a", Annotations{{-1, 0, []byte("<"), []byte(">"), 0}}, "a", ErrStartOutOfBounds},
+		"end oob":   {"a", Annotations{{0, 3, []byte("<"), []byte(">"), 0}}, "<a", ErrEndOutOfBounds},
+	}
+	for label, test := range tests {
+		if *match != "" && !strings.Contains(label, *match) {
+			continue
+		}
+
+		sort.Sort(Annotations(test.anns))
+
+		got, err := Annotate([]byte(test.input), test.anns, nil)
+		if err != test.wantErr {
+			if test.wantErr == nil {
+				t.Errorf("%s: Annotate: %s", label, err)
+			} else {
+				t.Errorf("%s: Annotate: got error %v, want %v", label, err, test.wantErr)
+			}
+			continue
+		}
+		if string(got) != test.want {
+			t.Errorf("%s: Annotate: got %q, want %q", label, got, test.want)
+			continue
+		}
+	}
+}
+
+func TestAnnotate_Files(t *testing.T) {
+	annsByFile := map[string]Annotations{
+		"hello_world.txt": Annotations{
 			{0, 5, []byte("<b>"), []byte("</b>"), 0},
 			{7, 12, []byte("<i>"), []byte("</i>"), 0},
 		},
-		"adjacent.txt": []*Annotation{
+		"adjacent.txt": Annotations{
 			{0, 3, []byte("<b>"), []byte("</b>"), 0},
 			{3, 6, []byte("<i>"), []byte("</i>"), 0},
 		},
-		"empties.txt": []*Annotation{
-			{0, 0, []byte("<b>"), []byte("</b>"), 0},
-			{0, 0, []byte("<i>"), []byte("</i>"), 0},
-			{2, 2, []byte("<i>"), []byte("</i>"), 0},
-		},
-		"nested_0.txt": []*Annotation{
+		"nested_0.txt": Annotations{
 			{0, 4, []byte("<1>"), []byte("</1>"), 0},
 			{1, 3, []byte("<2>"), []byte("</2>"), 0},
 		},
-		"nested_1.txt": []*Annotation{
-			{0, 4, []byte("<1>"), []byte("</1>"), 0},
-			{1, 3, []byte("<2>"), []byte("</2>"), 0},
-			{2, 2, []byte("<3>"), []byte("</3>"), 0},
-		},
-		"nested_2.txt": []*Annotation{
+		"nested_2.txt": Annotations{
 			{0, 2, []byte("<1>"), []byte("</1>"), 0},
 			{2, 4, []byte("<2>"), []byte("</2>"), 0},
 			{4, 6, []byte("<3>"), []byte("</3>"), 0},
 			{7, 8, []byte("<4>"), []byte("</4>"), 0},
 		},
-		"html.txt": []*Annotation{
+		"html.txt": Annotations{
 			{193, 203, []byte("<1>"), []byte("</1>"), 0},
 			{336, 339, []byte("<WOOF>"), []byte("</WOOF>"), 0},
 		},
@@ -73,15 +172,13 @@ func TestWithHTML(t *testing.T) {
 		}
 
 		anns := annsByFile[name]
-		var buf bytes.Buffer
-		err = WithHTML(input, anns, func(w io.Writer, b []byte) {
-			template.HTMLEscape(w, b)
-		}, &buf)
+		sort.Sort(anns)
+
+		got, err := Annotate(input, anns, func(w io.Writer, c rune) { template.HTMLEscape(w, []byte(string(c))) })
 		if err != nil {
-			t.Errorf("%s: WithHTML: %s", name, err)
+			t.Errorf("%s: Annotate: %s", name, err)
 			continue
 		}
-		got := buf.Bytes()
 
 		expPath := path + ".html"
 		if *saveExp {
@@ -114,7 +211,7 @@ func TestWithHTML(t *testing.T) {
 func BenchmarkAnnotate(b *testing.B) {
 	input := []byte(strings.Repeat("a", 2000))
 	n := len(input)/2 - 50
-	anns := make([]*Annotation, n)
+	anns := make(Annotations, n)
 	for i := 0; i < n; i++ {
 		if i%2 == 0 {
 			anns[i] = &Annotation{Start: 2 * i, End: 2*i + 1}
@@ -130,11 +227,11 @@ func BenchmarkAnnotate(b *testing.B) {
 		}
 		anns[i].WantInner = i % 5
 	}
-	sort.Sort(annotations(anns))
+	sort.Sort(anns)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := Annotate(input, 0, len(input), anns)
+		_, err := Annotate(input, anns, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

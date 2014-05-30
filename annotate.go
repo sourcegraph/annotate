@@ -2,8 +2,9 @@ package annotate
 
 import (
 	"bytes"
+	"errors"
 	"io"
-	"sort"
+	"unicode/utf8"
 )
 
 type Annotation struct {
@@ -12,10 +13,10 @@ type Annotation struct {
 	WantInner   int
 }
 
-type annotations []*Annotation
+type Annotations []*Annotation
 
-func (a annotations) Len() int { return len(a) }
-func (a annotations) Less(i, j int) bool {
+func (a Annotations) Len() int { return len(a) }
+func (a Annotations) Less(i, j int) bool {
 	// Sort by start position, breaking ties by preferring longer
 	// matches.
 	ai, aj := a[i], a[j]
@@ -28,93 +29,78 @@ func (a annotations) Less(i, j int) bool {
 		return ai.Start < aj.Start
 	}
 }
-func (a annotations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a Annotations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
-func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) error {
-	sort.Sort(annotations(anns))
-	_, err := annotate(src, 0, len(src), anns, encode, w)
-	return err
-}
+// Annotates src with annotations in anns.
+//
+// Annotating an empty byte array always returns an empty byte array.
+//
+// Assumes anns is sorted (using sort.Sort(anns)).
+func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, rune)) ([]byte, error) {
+	var out bytes.Buffer
+	var err error
 
-func Annotate(src []byte, left, right int, anns []*Annotation) ([]byte, error) {
-	var buf bytes.Buffer
-	_, err := annotate(src, left, right, anns, func(w io.Writer, b []byte) { w.Write(b) }, &buf)
-	return buf.Bytes(), err
-}
-
-func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) (bool, error) {
-	runes := []rune(string(src))
-	var annotate1 func(left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error)
-	annotate1 = func(left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer, seen map[*Annotation]struct{}) (bool, error) {
-		if encode == nil {
-			encode = func(w io.Writer, b []byte) { w.Write(b) }
-		}
-
-		rightmost := 0
-		for i, ann := range anns {
-			if _, exist := seen[ann]; exist {
-				continue
-			}
-			if ann.Start >= right {
-				return i != 0, nil
-			}
-			if ann.End < rightmost {
-				continue
-			}
-
-			if i == 0 {
-				encode(w, []byte(string(runes[left:ann.Start])))
-			} else {
-				prev := anns[i-1]
-				if prev.End >= len(runes) {
-					break
-				}
-				if ann.Start > prev.End {
-					encode(w, []byte(string(runes[prev.End:min(ann.Start, len(runes))])))
-				}
-			}
-
-			w.Write(ann.Left)
-
-			inner, err := annotate1(ann.Start, ann.End, anns[i+1:], encode, w, seen)
-			if err != nil {
-				return false, err
-			}
-
-			if !inner {
-				if ann.Start >= len(runes) {
-					break
-				}
-				b := []byte(string(runes[ann.Start:min(ann.End, len(runes))]))
-				encode(w, b)
-			}
-
-			w.Write(ann.Right)
-			seen[ann] = struct{}{}
-
-			if i == len(anns)-1 {
-				if ann.End < len(runes) {
-					// TODO(sqs): fix this. it chops off a portion of an
-					// annotation.
-					if right < ann.End {
-						right = ann.End
-					}
-					encode(w, []byte(string(runes[ann.End:min(right, len(runes))])))
-				}
-			}
-
-			rightmost = ann.End
-		}
-		return len(anns) > 0, nil
+	// Default content writer.
+	if writeContent == nil {
+		writeContent = func(w io.Writer, c rune) { io.WriteString(w, string(c)) }
 	}
 
-	seen := make(map[*Annotation]struct{})
-	return annotate1(left, right, anns, encode, w, seen)
+	// Keep a stack of annotations we should close at all future rune offsets.
+	closeAnnsAtRune := make(map[int]Annotations, len(src)/10)
+	closeAnnsAt := func(r int) {
+		// log.Printf("closeAnnsAt(%d)", r)
+		// Close annotations that after this rune.
+		if closeAnns, present := closeAnnsAtRune[r]; present {
+			for i := len(closeAnns) - 1; i >= 0; i-- {
+				out.Write(closeAnns[i].Right)
+			}
+			delete(closeAnnsAtRune, r)
+		}
+	}
+
+	runeCount := utf8.RuneCount(src)
+	b := 0
+	for r := 0; r < runeCount; r++ {
+		// Open annotations that begin here.
+		for i, a := range anns {
+			if a.Start == r {
+				out.Write(a.Left)
+
+				if a.Start == a.End {
+					out.Write(a.Right)
+				} else {
+					// Put this annotation on the stack of annotations that will need
+					// to be closed. We remove it from anns at the end of the loop
+					// (to avoid modifying anns while we're iterating over it).
+					closeAnnsAtRune[a.End] = append(closeAnnsAtRune[a.End], a)
+				}
+			} else if a.Start > r {
+				// Remove all annotations that we opened (we already put them on the
+				// stack of annotations that will need to be closed).
+				anns = anns[i:]
+				break
+			} else if a.Start < 0 {
+				err = ErrStartOutOfBounds
+			}
+		}
+
+		rune, runeSize := utf8.DecodeRune(src)
+		src = src[runeSize:]
+		b += runeSize
+
+		writeContent(&out, rune)
+
+		closeAnnsAt(r + 1)
+	}
+
+	if len(closeAnnsAtRune) > 0 {
+		err = ErrEndOutOfBounds
+	}
+
+	return out.Bytes(), err
 }
 
-func min(a, b int) int {
-	if a > b {
-		return b
-	}
-	return a
-}
+var (
+	ErrStartOutOfBounds = errors.New("annotation start out of bounds")
+	ErrEndOutOfBounds   = errors.New("annotation end out of bounds")
+)
