@@ -1,6 +1,7 @@
 package annotate
 
 import (
+	"bytes"
 	"io"
 	"log"
 	"sort"
@@ -36,6 +37,12 @@ func WithHTML(src []byte, anns []*Annotation, encode func(io.Writer, []byte), w 
 	sort.Sort(annotations(anns))
 	_, err := annotate(src, 0, len(src), anns, encode, w)
 	return err
+}
+
+func Annotate(src []byte, left, right int, anns []*Annotation) ([]byte, error) {
+	var buf bytes.Buffer
+	_, err := annotate(src, left, right, anns, func(w io.Writer, b []byte) { w.Write(b) }, &buf)
+	return buf.Bytes(), err
 }
 
 func annotate(src []byte, left, right int, anns []*Annotation, encode func(io.Writer, []byte), w io.Writer) (bool, error) {

@@ -1,0 +1,3 @@
+PASS
+BenchmarkAnnotate-12	     500	   6044774 ns/op	   64551 B/op	      74 allocs/op
+ok  	github.com/sourcegraph/annotate	3.638s

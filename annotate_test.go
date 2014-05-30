@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"text/template"
@@ -107,5 +108,35 @@ func TestWithHTML(t *testing.T) {
 
 	if *saveExp {
 		t.Fatal("overwrote all expected output files with actual output (run tests again without -exp)")
+	}
+}
+
+func BenchmarkAnnotate(b *testing.B) {
+	input := []byte(strings.Repeat("a", 2000))
+	n := len(input)/2 - 50
+	anns := make([]*Annotation, n)
+	for i := 0; i < n; i++ {
+		if i%2 == 0 {
+			anns[i] = &Annotation{Start: 2 * i, End: 2*i + 1}
+		} else {
+			anns[i] = &Annotation{Start: 2*i - 50, End: 2*i + 50}
+			if anns[i].Start < 0 {
+				anns[i].Start = 0
+				anns[i].End = i
+			}
+			if anns[i].End >= len(input) {
+				anns[i].End = len(input) - 1
+			}
+		}
+		anns[i].WantInner = i % 5
+	}
+	sort.Sort(annotations(anns))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := Annotate(input, 0, len(input), anns)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
