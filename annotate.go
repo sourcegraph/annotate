@@ -37,7 +37,7 @@ func (a Annotations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 //
 // Assumes anns is sorted (using sort.Sort(anns)).
 func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)) ([]byte, error) {
-	var out bytes.Buffer
+	out := bytes.NewBuffer(make([]byte, 0, len(src)+20*len(anns)))
 	var err error
 
 	// Keep a stack of annotations we should close at all future rune offsets.
@@ -72,7 +72,7 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 		if writeContent == nil {
 			out.Write(src[:runeSize])
 		} else {
-			writeContent(&out, src[:runeSize])
+			writeContent(out, src[:runeSize])
 		}
 		src = src[runeSize:]
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"text/template"
+	"unicode/utf8"
 )
 
 var saveExp = flag.Bool("exp", false, "overwrite all expected output files with actual output (returning a failure)")
@@ -210,6 +211,7 @@ func TestAnnotate_Files(t *testing.T) {
 
 func BenchmarkAnnotate(b *testing.B) {
 	input := []byte(strings.Repeat(strings.Repeat("a", 99)+"⌘", 20))
+	inputLength := utf8.RuneCount(input)
 	n := len(input)/2 - 50
 	anns := make(Annotations, n)
 	for i := 0; i < n; i++ {
@@ -221,10 +223,12 @@ func BenchmarkAnnotate(b *testing.B) {
 				anns[i].Start = 0
 				anns[i].End = i
 			}
-			if anns[i].End >= len(input) {
-				anns[i].End = len(input) - 1
+			if anns[i].End >= inputLength {
+				anns[i].End = inputLength
 			}
 		}
+		anns[i].Left = []byte(strings.Repeat("L", i%20))
+		anns[i].Right = []byte(strings.Repeat("R", i%20))
 		anns[i].WantInner = i % 5
 	}
 	sort.Sort(anns)
