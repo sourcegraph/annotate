@@ -99,8 +99,18 @@ func TestAnnotate(t *testing.T) {
 		},
 
 		// Errors
-		"start oob": {"a", Annotations{{-1, 0, []byte("<"), []byte(">"), 0}}, "a", ErrStartOutOfBounds},
-		"end oob":   {"a", Annotations{{0, 3, []byte("<"), []byte(">"), 0}}, "<a>", ErrEndOutOfBounds},
+		"start oob": {"a", Annotations{{-1, 1, []byte("<"), []byte(">"), 0}}, "<a>", ErrStartOutOfBounds},
+		"start oob (multiple)": {
+			"a",
+			Annotations{
+				{-3, 1, []byte("1"), []byte(""), 0},
+				{-3, 1, []byte("2"), []byte(""), 0},
+				{-1, 1, []byte("3"), []byte(""), 0},
+			},
+			"123a",
+			ErrStartOutOfBounds,
+		},
+		"end oob": {"a", Annotations{{0, 3, []byte("<"), []byte(">"), 0}}, "<a>", ErrEndOutOfBounds},
 		"end oob (multiple)": {
 			"ab",
 			Annotations{

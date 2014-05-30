@@ -48,7 +48,11 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 	for r := 0; r < runeCount; r++ {
 		// Open annotations that begin here.
 		for i, a := range anns {
-			if a.Start == r {
+			if a.Start < 0 || a.Start == r {
+				if a.Start < 0 {
+					err = ErrStartOutOfBounds
+				}
+
 				out.Write(a.Left)
 
 				if a.Start == a.End {
@@ -64,8 +68,6 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 				// stack of annotations that will need to be closed).
 				anns = anns[i:]
 				break
-			} else if a.Start < 0 {
-				err = ErrStartOutOfBounds
 			}
 		}
 
@@ -87,7 +89,11 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 	}
 
 	if unclosed := len(closeAnnsAtRune); unclosed > 0 {
-		err = ErrEndOutOfBounds
+		if err == ErrStartOutOfBounds {
+			err = ErrStartAndEndOutOfBounds
+		} else {
+			err = ErrEndOutOfBounds
+		}
 
 		// Clean up by closing unclosed annotations, in the order they would have been
 		// closed in.
@@ -105,6 +111,11 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 }
 
 var (
-	ErrStartOutOfBounds = errors.New("annotation start out of bounds")
-	ErrEndOutOfBounds   = errors.New("annotation end out of bounds")
+	ErrStartOutOfBounds       = errors.New("annotation start out of bounds")
+	ErrEndOutOfBounds         = errors.New("annotation end out of bounds")
+	ErrStartAndEndOutOfBounds = errors.New("annotations start and end out of bounds")
 )
+
+func IsOutOfBounds(err error) bool {
+	return err == ErrStartOutOfBounds || err == ErrEndOutOfBounds || err == ErrStartAndEndOutOfBounds
+}
