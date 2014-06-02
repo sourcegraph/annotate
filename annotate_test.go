@@ -81,9 +81,9 @@ func TestAnnotate(t *testing.T) {
 		"unicode content": {
 			"abcdef⌘vwxyz",
 			Annotations{
-				{6, 7, []byte("<a>"), []byte("</a>"), 0},
-				{8, 10, []byte("<b>"), []byte("</b>"), 0},
-				{0, 11, []byte("<c>"), []byte("</c>"), 0},
+				{6, 9, []byte("<a>"), []byte("</a>"), 0},
+				{10, 12, []byte("<b>"), []byte("</b>"), 0},
+				{0, 13, []byte("<c>"), []byte("</c>"), 0},
 			},
 			"<c>abcdef<a>⌘</a>v<b>wx</b>y</c>z",
 			nil,

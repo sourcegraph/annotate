@@ -5,11 +5,12 @@ import (
 	"errors"
 	"io"
 	"sort"
-	"unicode/utf8"
 )
 
 type Annotation struct {
-	Start, End  int
+	// Start and End byte offsets (not rune offsets).
+	Start, End int
+
 	Left, Right []byte
 	WantInner   int
 }
@@ -42,13 +43,12 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 	var err error
 
 	// Keep a stack of annotations we should close at all future rune offsets.
-	closeAnnsAtRune := make(map[int]Annotations, len(src)/10)
+	closeAnnsAtByte := make(map[int]Annotations, len(src)/10)
 
-	runeCount := utf8.RuneCount(src)
-	for r := 0; r < runeCount; r++ {
+	for b := range src {
 		// Open annotations that begin here.
 		for i, a := range anns {
-			if a.Start < 0 || a.Start == r {
+			if a.Start < 0 || a.Start == b {
 				if a.Start < 0 {
 					err = ErrStartOutOfBounds
 				}
@@ -61,9 +61,9 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 					// Put this annotation on the stack of annotations that will need
 					// to be closed. We remove it from anns at the end of the loop
 					// (to avoid modifying anns while we're iterating over it).
-					closeAnnsAtRune[a.End] = append(closeAnnsAtRune[a.End], a)
+					closeAnnsAtByte[a.End] = append(closeAnnsAtByte[a.End], a)
 				}
-			} else if a.Start > r {
+			} else if a.Start > b {
 				// Remove all annotations that we opened (we already put them on the
 				// stack of annotations that will need to be closed).
 				anns = anns[i:]
@@ -71,24 +71,22 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 			}
 		}
 
-		_, runeSize := utf8.DecodeRune(src)
 		if writeContent == nil {
-			out.Write(src[:runeSize])
+			out.Write(src[b : b+1])
 		} else {
-			writeContent(out, src[:runeSize])
+			writeContent(out, src[b:b+1])
 		}
-		src = src[runeSize:]
 
 		// Close annotations that after this rune.
-		if closeAnns, present := closeAnnsAtRune[r+1]; present {
+		if closeAnns, present := closeAnnsAtByte[b+1]; present {
 			for i := len(closeAnns) - 1; i >= 0; i-- {
 				out.Write(closeAnns[i].Right)
 			}
-			delete(closeAnnsAtRune, r+1)
+			delete(closeAnnsAtByte, b+1)
 		}
 	}
 
-	if unclosed := len(closeAnnsAtRune); unclosed > 0 {
+	if unclosed := len(closeAnnsAtByte); unclosed > 0 {
 		if err == ErrStartOutOfBounds {
 			err = ErrStartAndEndOutOfBounds
 		} else {
@@ -97,8 +95,8 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 
 		// Clean up by closing unclosed annotations, in the order they would have been
 		// closed in.
-		unclosedAnns := make(Annotations, 0, len(closeAnnsAtRune))
-		for _, anns := range closeAnnsAtRune {
+		unclosedAnns := make(Annotations, 0, len(closeAnnsAtByte))
+		for _, anns := range closeAnnsAtByte {
 			unclosedAnns = append(unclosedAnns, anns...)
 		}
 		sort.Sort(sort.Reverse(unclosedAnns))
