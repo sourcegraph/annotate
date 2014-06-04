@@ -77,13 +77,47 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 			writeContent(out, src[b:b+1])
 		}
 
-		// Close annotations that end after this byte.
+		// Close annotations that end after this byte, handling overlapping
+		// elements as described below. Elements of open are ordered by their
+		// annotation start position.
+
+		// We need to close all annotatations ending after this byte, as well as
+		// annotations that overlap this annotation's end and should reopen
+		// after it closes.
+		var toClose []*Annotation
+
+		// Find annotations ending after this byte.
+		minStart := 0 // start of the leftmost annotation closing here
 		for i := len(open) - 1; i >= 0; i-- {
-			if a := open[i]; a.End == b+1 {
-				out.Write(a.Right)
-				open = open[:i]
-			} else {
-				break
+			a := open[i]
+			if a.End == b+1 {
+				toClose = append(toClose, a)
+				if minStart == 0 || a.Start < minStart {
+					minStart = a.Start
+				}
+				open = append(open[:i], open[i+1:]...)
+			}
+		}
+
+		// Find annotations that overlap annotations closing after this and
+		// that should reopen after it closes.
+		if toClose != nil {
+			for i := len(open) - 1; i >= 0; i-- {
+				if a := open[i]; a.Start > minStart {
+					out.Write(a.Right)
+				}
+			}
+		}
+
+		for _, a := range toClose {
+			out.Write(a.Right)
+		}
+
+		if toClose != nil {
+			for _, a := range open {
+				if a.Start > minStart {
+					out.Write(a.Left)
+				}
 			}
 		}
 	}
@@ -114,4 +148,12 @@ var (
 
 func IsOutOfBounds(err error) bool {
 	return err == ErrStartOutOfBounds || err == ErrEndOutOfBounds || err == ErrStartAndEndOutOfBounds
+}
+
+func annLefts(as []*Annotation) []string {
+	ls := make([]string, len(as))
+	for i, a := range as {
+		ls[i] = string(a.Left)
+	}
+	return ls
 }

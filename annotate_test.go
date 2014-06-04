@@ -2,7 +2,9 @@ package annotate
 
 import (
 	"bytes"
+	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"path/filepath"
@@ -10,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"text/template"
+	"time"
 	"unicode/utf8"
 )
 
@@ -98,6 +101,60 @@ func TestAnnotate(t *testing.T) {
 			nil,
 		},
 
+		// Overlapping
+		"overlap simple": {
+			"abc",
+			Annotations{
+				{0, 2, []byte("<X>"), []byte("</X>"), 0},
+				{1, 3, []byte("<Y>"), []byte("</Y>"), 0},
+			},
+			// Without re-opening overlapped annotations, we'd get
+			// "<X>a<Y>b</X>c</Y>".
+			"<X>a<Y>b</Y></X><Y>c</Y>",
+			nil,
+		},
+		"overlap simple double": {
+			"abc",
+			Annotations{
+				{0, 2, []byte("<X1>"), []byte("</X1>"), 0},
+				{0, 2, []byte("<X2>"), []byte("</X2>"), 0},
+				{1, 3, []byte("<Y1>"), []byte("</Y1>"), 0},
+				{1, 3, []byte("<Y2>"), []byte("</Y2>"), 0},
+			},
+			"<X1><X2>a<Y1><Y2>b</Y2></Y1></X2></X1><Y1><Y2>c</Y2></Y1>",
+			nil,
+		},
+		"overlap triple complex": {
+			"abcd",
+			Annotations{
+				{0, 2, []byte("<X>"), []byte("</X>"), 0},
+				{1, 3, []byte("<Y>"), []byte("</Y>"), 0},
+				{2, 4, []byte("<Z>"), []byte("</Z>"), 0},
+			},
+			"<X>a<Y>b</Y></X><Y><Z>c</Z></Y><Z>d</Z>",
+			nil,
+		},
+		"overlap same start": {
+			"abcd",
+			Annotations{
+				{0, 2, []byte("<X>"), []byte("</X>"), 0},
+				{0, 3, []byte("<Y>"), []byte("</Y>"), 0},
+				{1, 4, []byte("<Z>"), []byte("</Z>"), 0},
+			},
+			"<Y><X>a<Z>b</Z></X><Z>c</Z></Y><Z>d</Z>",
+			nil,
+		},
+		"overlap (infinite loop regression #1)": {
+			"abcde",
+			Annotations{
+				{0, 3, []byte("<X>"), []byte("</X>"), 0},
+				{1, 5, []byte("<Y>"), []byte("</Y>"), 0},
+				{1, 2, []byte("<Z>"), []byte("</Z>"), 0},
+			},
+			"<X>a<Y><Z>b</Z>c</Y></X><Y>de</Y>",
+			nil,
+		},
+
 		// Errors
 		"start oob": {"a", Annotations{{-1, 1, []byte("<"), []byte(">"), 0}}, "<a>", ErrStartOutOfBounds},
 		"start oob (multiple)": {
@@ -136,10 +193,9 @@ func TestAnnotate(t *testing.T) {
 			} else {
 				t.Errorf("%s: Annotate: got error %v, want %v", label, err, test.wantErr)
 			}
-			continue
 		}
 		if string(got) != test.want {
-			t.Errorf("%s: Annotate: got %q, want %q", label, got, test.want)
+			t.Errorf("%s: Annotate:\ngot  %q\nwant %q", label, got, test.want)
 			continue
 		}
 	}
@@ -229,10 +285,10 @@ func TestAnnotate_Files(t *testing.T) {
 	}
 }
 
-func BenchmarkAnnotate(b *testing.B) {
-	input := []byte(strings.Repeat(strings.Repeat("a", 99)+"⌘", 20))
+func makeFakeData(size1, size2 int) ([]byte, Annotations) {
+	input := []byte(strings.Repeat(strings.Repeat("a", size1)+"⌘", size2))
 	inputLength := utf8.RuneCount(input)
-	n := len(input)/2 - 50
+	n := len(input)/2 - (size1+1)/2
 	anns := make(Annotations, n)
 	for i := 0; i < n; i++ {
 		if i%2 == 0 {
@@ -247,17 +303,50 @@ func BenchmarkAnnotate(b *testing.B) {
 				anns[i].End = inputLength
 			}
 		}
-		anns[i].Left = []byte(strings.Repeat("L", i%20))
-		anns[i].Right = []byte(strings.Repeat("R", i%20))
+		anns[i].Left = []byte("L")  //[]byte(strings.Repeat("L", i%20))
+		anns[i].Right = []byte("R") //[]byte(strings.Repeat("R", i%20))
 		anns[i].WantInner = i % 5
 	}
 	sort.Sort(anns)
+	return input, anns
+}
 
+func TestAnnotate_GeneratedData(t *testing.T) {
+	input, anns := makeFakeData(1, 15)
+
+	fail := func(err error) {
+		annStrs := make([]string, len(anns))
+		for i, a := range anns {
+			annStrs[i] = fmt.Sprintf("%v", a)
+		}
+		t.Fatalf("Annotate: %s\n\nInput was:\n%q\n\nAnnotations:\n%s", err, input, strings.Join(annStrs, "\n"))
+	}
+
+	tm := time.NewTimer(time.Millisecond * 500)
+	done := make(chan error)
+
+	go func() {
+		_, err := Annotate(input, anns, nil)
+		done <- err
+	}()
+
+	select {
+	case <-tm.C:
+		fail(errors.New("timed out (is there an infinite loop?)"))
+	case err := <-done:
+		if err != nil {
+			fail(err)
+		}
+	}
+}
+
+func BenchmarkAnnotate(b *testing.B) {
+	input, anns := makeFakeData(99, 20)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := Annotate(input, anns, nil)
 		if err != nil {
-			// b.Fatal(err)
+			b.Fatal(err)
 		}
 	}
 }
