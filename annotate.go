@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"sort"
 )
 
 type Annotation struct {
@@ -42,8 +41,9 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 	out := bytes.NewBuffer(make([]byte, 0, len(src)+20*len(anns)))
 	var err error
 
-	// Keep a stack of annotations we should close at all future rune offsets.
-	closeAnnsAtByte := make(map[int]Annotations, len(src)/10)
+	// Keep a stack of open annotations (i.e., that have been opened and not yet
+	// closed).
+	var open []*Annotation
 
 	for b := range src {
 		// Open annotations that begin here.
@@ -61,7 +61,7 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 					// Put this annotation on the stack of annotations that will need
 					// to be closed. We remove it from anns at the end of the loop
 					// (to avoid modifying anns while we're iterating over it).
-					closeAnnsAtByte[a.End] = append(closeAnnsAtByte[a.End], a)
+					open = append(open, a)
 				}
 			} else if a.Start > b {
 				// Remove all annotations that we opened (we already put them on the
@@ -77,30 +77,28 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 			writeContent(out, src[b:b+1])
 		}
 
-		// Close annotations that after this rune.
-		if closeAnns, present := closeAnnsAtByte[b+1]; present {
-			for i := len(closeAnns) - 1; i >= 0; i-- {
-				out.Write(closeAnns[i].Right)
+		// Close annotations that end after this byte.
+		for i := len(open) - 1; i >= 0; i-- {
+			if a := open[i]; a.End == b+1 {
+				out.Write(a.Right)
+				open = open[:i]
+			} else {
+				break
 			}
-			delete(closeAnnsAtByte, b+1)
 		}
 	}
 
-	if unclosed := len(closeAnnsAtByte); unclosed > 0 {
+	if len(open) > 0 {
 		if err == ErrStartOutOfBounds {
 			err = ErrStartAndEndOutOfBounds
 		} else {
 			err = ErrEndOutOfBounds
 		}
 
-		// Clean up by closing unclosed annotations, in the order they would have been
-		// closed in.
-		unclosedAnns := make(Annotations, 0, len(closeAnnsAtByte))
-		for _, anns := range closeAnnsAtByte {
-			unclosedAnns = append(unclosedAnns, anns...)
-		}
-		sort.Sort(sort.Reverse(unclosedAnns))
-		for _, a := range unclosedAnns {
+		// Clean up by closing unclosed annotations, in the order they would
+		// have been closed in.
+		for i := len(open) - 1; i >= 0; i-- {
+			a := open[i]
 			out.Write(a.Right)
 		}
 	}
