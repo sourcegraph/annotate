@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"path/filepath"
 	"sort"
@@ -251,7 +250,7 @@ func TestAnnotate_Files(t *testing.T) {
 		anns := annsByFile[name]
 		sort.Sort(anns)
 
-		got, err := Annotate(input, anns, func(w io.Writer, b []byte) { template.HTMLEscape(w, b) })
+		got, err := Annotate(input, anns, template.HTMLEscape)
 		if err != nil {
 			t.Errorf("%s: Annotate: %s", name, err)
 			continue
