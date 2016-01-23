@@ -202,25 +202,25 @@ func TestAnnotate(t *testing.T) {
 
 func TestAnnotate_Files(t *testing.T) {
 	annsByFile := map[string]Annotations{
-		"hello_world.txt": Annotations{
+		"hello_world.txt": {
 			{0, 5, []byte("<b>"), []byte("</b>"), 0},
 			{7, 12, []byte("<i>"), []byte("</i>"), 0},
 		},
-		"adjacent.txt": Annotations{
+		"adjacent.txt": {
 			{0, 3, []byte("<b>"), []byte("</b>"), 0},
 			{3, 6, []byte("<i>"), []byte("</i>"), 0},
 		},
-		"nested_0.txt": Annotations{
+		"nested_0.txt": {
 			{0, 4, []byte("<1>"), []byte("</1>"), 0},
 			{1, 3, []byte("<2>"), []byte("</2>"), 0},
 		},
-		"nested_2.txt": Annotations{
+		"nested_2.txt": {
 			{0, 2, []byte("<1>"), []byte("</1>"), 0},
 			{2, 4, []byte("<2>"), []byte("</2>"), 0},
 			{4, 6, []byte("<3>"), []byte("</3>"), 0},
 			{7, 8, []byte("<4>"), []byte("</4>"), 0},
 		},
-		"html.txt": Annotations{
+		"html.txt": {
 			{193, 203, []byte("<1>"), []byte("</1>"), 0},
 			{336, 339, []byte("<WOOF>"), []byte("</WOOF>"), 0},
 		},
