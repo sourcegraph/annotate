@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -227,7 +226,7 @@ func TestAnnotate_Files(t *testing.T) {
 	}
 
 	dir := "testdata"
-	tests, err := ioutil.ReadDir(dir)
+	tests, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +240,7 @@ func TestAnnotate_Files(t *testing.T) {
 			continue
 		}
 		path := filepath.Join(dir, name)
-		input, err := ioutil.ReadFile(path)
+		input, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 			continue
@@ -258,14 +257,14 @@ func TestAnnotate_Files(t *testing.T) {
 
 		expPath := path + ".html"
 		if *saveExp {
-			err = ioutil.WriteFile(expPath, got, 0700)
+			err = os.WriteFile(expPath, got, 0700)
 			if err != nil {
 				t.Fatal(err)
 			}
 			continue
 		}
 
-		want, err := ioutil.ReadFile(expPath)
+		want, err := os.ReadFile(expPath)
 		if err != nil {
 			t.Fatal(err)
 		}
