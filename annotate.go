@@ -123,7 +123,7 @@ func Annotate(src []byte, anns Annotations, writeContent func(io.Writer, []byte)
 	}
 
 	if len(open) > 0 {
-		if err == ErrStartOutOfBounds {
+		if errors.Is(err, ErrStartOutOfBounds) {
 			err = ErrStartAndEndOutOfBounds
 		} else {
 			err = ErrEndOutOfBounds
@@ -147,7 +147,7 @@ var (
 )
 
 func IsOutOfBounds(err error) bool {
-	return err == ErrStartOutOfBounds || err == ErrEndOutOfBounds || err == ErrStartAndEndOutOfBounds
+	return errors.Is(err, ErrStartOutOfBounds) || errors.Is(err, ErrEndOutOfBounds) || errors.Is(err, ErrStartAndEndOutOfBounds)
 }
 
 func annLefts(as []*Annotation) []string {
